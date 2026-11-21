@@ -1,4 +1,15 @@
 docs/*
 
-target/
+# Rust
+**/target/
 **/*.rs.bk
+*.rs.bk
+
+# Frontend / Monorepo
+node_modules/
+.next/
+dist/
+build/
+.env.local
+.env.*.local
+*.log
