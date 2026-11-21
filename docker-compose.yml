@@ -1,0 +1,116 @@
+# ==============================================================================
+# Full-Stack Monorepo Docker Compose
+# Services:
+#   - api-server: Axum REST and WebSocket gateway
+#   - scan-worker: Background scan lifecycle executor & cron scheduler
+#   - postgres: PostgreSQL 16 database with persistence
+#   - redis: Redis 7 pub/sub event bus
+#   - zap: OWASP ZAP automated scanner daemon
+# ==============================================================================
+
+services:
+  api-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: api-server
+    container_name: kds-api-server
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+      - DATABASE_URL=postgres://${POSTGRES_USER:-appsec}:${POSTGRES_PASSWORD:-appsec_password}@postgres:5432/${POSTGRES_DB:-appsec_db}
+      - REDIS_URL=redis://redis:6379
+      - ZAP_URL=http://zap:8080
+      - ZAP_API_KEY=${ZAP_API_KEY:-zap_secret_api_key_2026}
+      - JWT_SECRET=${JWT_SECRET:-super_secret_jwt_key_production_grade_security_2026}
+      - RUST_LOG=info,api_server=debug,tower_http=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - kds-network
+
+  scan-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: scan-worker
+    container_name: kds-scan-worker
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER:-appsec}:${POSTGRES_PASSWORD:-appsec_password}@postgres:5432/${POSTGRES_DB:-appsec_db}
+      - REDIS_URL=redis://redis:6379
+      - ZAP_URL=http://zap:8080
+      - ZAP_API_KEY=${ZAP_API_KEY:-zap_secret_api_key_2026}
+      - RUST_LOG=info,scan_worker=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      zap:
+        condition: service_started
+    networks:
+      - kds-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: kds-postgres
+    restart: unless-stopped
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-appsec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-appsec_password}
+      POSTGRES_DB: ${POSTGRES_DB:-appsec_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/crates/infra/migrations/0001_initial_schema.sql:/docker-entrypoint-initdb.d/0001_initial_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appsec} -d ${POSTGRES_DB:-appsec_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kds-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: kds-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kds-network
+
+  zap:
+    image: zaproxy/zap-stable:latest
+    container_name: kds-zap
+    restart: unless-stopped
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.key=${ZAP_API_KEY:-zap_secret_api_key_2026} -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+    ports:
+      - "${ZAP_PORT:-8080}:8080"
+    networks:
+      - kds-network
+
+volumes:
+  postgres_data:
+    name: kds_postgres_data
+  redis_data:
+    name: kds_redis_data
+
+networks:
+  kds-network:
+    name: kds-monorepo-network
+    driver: bridge

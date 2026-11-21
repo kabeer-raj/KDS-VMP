@@ -1,0 +1,17 @@
+# ==============================================================================
+# Standalone Backend (Zero External Dependencies)
+# Runs the API server with embedded in-memory database and mock fixtures
+# ==============================================================================
+
+services:
+  api-server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: api-server
+    container_name: kds-api-server-standalone
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - RUST_LOG=info,api_server=debug,tower_http=debug

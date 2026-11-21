@@ -8,6 +8,7 @@ shared-types = { path = "../shared-types" }
 core-domain = { path = "../core-domain" }
 infra = { path = "../infra" }
 
+sqlx = { workspace = true }
 tokio = { workspace = true }
 axum = { workspace = true }
 tower = { workspace = true }

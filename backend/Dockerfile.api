@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+FROM rust:1.85-bookworm AS builder
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ crates/
+COPY tests/ tests/
+
+RUN cargo build --release -p api-server
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 -U appsec
+
+WORKDIR /app
+COPY --from=builder /app/target/release/api-server /usr/local/bin/api-server
+
+USER appsec
+ENV PORT=8000
+EXPOSE 8000
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/api/v1/auth/me || exit 1
+
+ENTRYPOINT ["/usr/local/bin/api-server"]
