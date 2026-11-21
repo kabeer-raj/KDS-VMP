@@ -5,73 +5,105 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 3.1 CUSTOM ENUM TYPES (Mapped to Rust `crates/shared-types`)
 -- ============================================================================
 
-CREATE TYPE user_role AS ENUM (
-    'admin',
-    'security_engineer',
-    'developer',
-    'auditor'
-);
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM (
+        'admin',
+        'security_engineer',
+        'developer',
+        'auditor'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE app_environment AS ENUM (
-    'production',
-    'staging',
-    'development',
-    'qa'
-);
+DO $$ BEGIN
+    CREATE TYPE app_environment AS ENUM (
+        'production',
+        'staging',
+        'development',
+        'qa'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE app_criticality AS ENUM (
-    'critical',
-    'high',
-    'medium',
-    'low'
-);
+DO $$ BEGIN
+    CREATE TYPE app_criticality AS ENUM (
+        'critical',
+        'high',
+        'medium',
+        'low'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE scan_type AS ENUM (
-    'baseline_passive',
-    'full_active',
-    'api_openapi',
-    'spa_ajax'
-);
+DO $$ BEGIN
+    CREATE TYPE scan_type AS ENUM (
+        'baseline_passive',
+        'full_active',
+        'api_openapi',
+        'spa_ajax'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE scan_status AS ENUM (
-    'queued',
-    'spidering',
-    'active_scanning',
-    'ingesting',
-    'completed',
-    'failed',
-    'cancelled'
-);
+DO $$ BEGIN
+    CREATE TYPE scan_status AS ENUM (
+        'queued',
+        'spidering',
+        'active_scanning',
+        'ingesting',
+        'completed',
+        'failed',
+        'cancelled'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE severity_level AS ENUM (
-    'info',
-    'low',
-    'medium',
-    'high',
-    'critical'
-);
+DO $$ BEGIN
+    CREATE TYPE severity_level AS ENUM (
+        'info',
+        'low',
+        'medium',
+        'high',
+        'critical'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE remediation_status AS ENUM (
-    'open',
-    'in_progress',
-    'false_positive',
-    'risk_accepted',
-    'resolved',
-    'verified_fixed',
-    'regressed'
-);
+DO $$ BEGIN
+    CREATE TYPE remediation_status AS ENUM (
+        'open',
+        'in_progress',
+        'false_positive',
+        'risk_accepted',
+        'resolved',
+        'verified_fixed',
+        'regressed'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE diff_classification AS ENUM (
-    'new',
-    'persistent',
-    'regressed'
-);
+DO $$ BEGIN
+    CREATE TYPE diff_classification AS ENUM (
+        'new',
+        'persistent',
+        'regressed'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================================
 -- 3.2 USERS & AUTHENTICATION
 -- ============================================================================
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email           VARCHAR(255) NOT NULL UNIQUE,
     full_name       VARCHAR(150) NOT NULL,
@@ -83,7 +115,7 @@ CREATE TABLE users (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE api_keys (
+CREATE TABLE IF NOT EXISTS api_keys (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name            VARCHAR(100) NOT NULL,
@@ -98,7 +130,7 @@ CREATE TABLE api_keys (
 -- 3.3 WEB APPLICATION INVENTORY
 -- ============================================================================
 
-CREATE TABLE applications (
+CREATE TABLE IF NOT EXISTS applications (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name                VARCHAR(150) NOT NULL,
     description         TEXT,
@@ -122,14 +154,14 @@ CREATE TABLE applications (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_applications_owner ON applications(owner_id);
-CREATE INDEX idx_applications_env ON applications(environment);
+CREATE INDEX IF NOT EXISTS idx_applications_owner ON applications(owner_id);
+CREATE INDEX IF NOT EXISTS idx_applications_env ON applications(environment);
 
 -- ============================================================================
 -- 3.4 SECURITY ASSESSMENTS (SCAN RUNS)
 -- ============================================================================
 
-CREATE TABLE scans (
+CREATE TABLE IF NOT EXISTS scans (
     id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id          UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
     triggered_by            UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -162,14 +194,14 @@ CREATE TABLE scans (
     created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_scans_app_created ON scans(application_id, created_at DESC);
-CREATE INDEX idx_scans_status ON scans(status);
+CREATE INDEX IF NOT EXISTS idx_scans_app_created ON scans(application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
 
 -- ============================================================================
 -- 3.5 CANONICAL DEDUPLICATED VULNERABILITIES
 -- ============================================================================
 
-CREATE TABLE vulnerabilities (
+CREATE TABLE IF NOT EXISTS vulnerabilities (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     application_id      UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
 
@@ -219,16 +251,16 @@ CREATE TABLE vulnerabilities (
     CONSTRAINT uq_vuln_app_fingerprint UNIQUE (application_id, fingerprint)
 );
 
-CREATE INDEX idx_vulns_app_status ON vulnerabilities(application_id, status);
-CREATE INDEX idx_vulns_severity_cvss ON vulnerabilities(severity, cvss_score DESC);
-CREATE INDEX idx_vulns_owasp ON vulnerabilities(owasp_category);
-CREATE INDEX idx_vulns_assigned ON vulnerabilities(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_vulns_app_status ON vulnerabilities(application_id, status);
+CREATE INDEX IF NOT EXISTS idx_vulns_severity_cvss ON vulnerabilities(severity, cvss_score DESC);
+CREATE INDEX IF NOT EXISTS idx_vulns_owasp ON vulnerabilities(owasp_category);
+CREATE INDEX IF NOT EXISTS idx_vulns_assigned ON vulnerabilities(assigned_to);
 
 -- ============================================================================
 -- 3.6 SCAN FINDINGS SNAPSHOT (JUNCTION FOR DIFFING & EVIDENCE)
 -- ============================================================================
 
-CREATE TABLE scan_findings (
+CREATE TABLE IF NOT EXISTS scan_findings (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     scan_id             UUID NOT NULL REFERENCES scans(id) ON DELETE CASCADE,
     vulnerability_id    UUID NOT NULL REFERENCES vulnerabilities(id) ON DELETE CASCADE,
@@ -248,14 +280,14 @@ CREATE TABLE scan_findings (
     CONSTRAINT uq_scan_vuln UNIQUE (scan_id, vulnerability_id)
 );
 
-CREATE INDEX idx_scan_findings_scan ON scan_findings(scan_id);
-CREATE INDEX idx_scan_findings_vuln ON scan_findings(vulnerability_id);
+CREATE INDEX IF NOT EXISTS idx_scan_findings_scan ON scan_findings(scan_id);
+CREATE INDEX IF NOT EXISTS idx_scan_findings_vuln ON scan_findings(vulnerability_id);
 
 -- ============================================================================
 -- 3.7 REMEDIATION AUDIT LOGS & TRIAGE COMMENTS
 -- ============================================================================
 
-CREATE TABLE remediation_audit_logs (
+CREATE TABLE IF NOT EXISTS remediation_audit_logs (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     vulnerability_id    UUID NOT NULL REFERENCES vulnerabilities(id) ON DELETE CASCADE,
     actor_id            UUID REFERENCES users(id) ON DELETE SET NULL,
@@ -269,7 +301,7 @@ CREATE TABLE remediation_audit_logs (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_vuln_created ON remediation_audit_logs(vulnerability_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_vuln_created ON remediation_audit_logs(vulnerability_id, created_at DESC);
 
 -- ============================================================================
 -- 3.8 AUTOMATIC `updated_at` TRIGGER
@@ -283,14 +315,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS set_timestamp_users ON users;
 CREATE TRIGGER set_timestamp_users
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
+DROP TRIGGER IF EXISTS set_timestamp_applications ON applications;
 CREATE TRIGGER set_timestamp_applications
     BEFORE UPDATE ON applications
     FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
+DROP TRIGGER IF EXISTS set_timestamp_vulnerabilities ON vulnerabilities;
 CREATE TRIGGER set_timestamp_vulnerabilities
     BEFORE UPDATE ON vulnerabilities
     FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
