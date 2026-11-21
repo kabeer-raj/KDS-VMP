@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/shared-types",
+    "crates/core-domain",
+    "crates/infra",
+    "crates/api-server",
+    "crates/scan-worker",
+    "tests/e2e",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["AppSec Team"]
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+uuid = { version = "1.29.0", features = ["serde", "v4"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+tokio = { version = "1.54.1", features = ["full"] }
+axum = { version = "0.7.9", features = ["ws", "macros"] }
+tower = { version = "0.5.3", features = ["util"] }
+tower-http = { version = "0.6.11", features = ["cors", "trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
+sha2 = "0.10.9"
+thiserror = "2.0.21"
+async-trait = "0.1.92"
+jsonwebtoken = "9.3.1"
+argon2 = "0.5.3"
+regex = "1.13.1"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate"] }
+reqwest = { version = "0.12.28", features = ["json"] }
+redis = { version = "0.27.6", features = ["tokio-comp", "aio"] }
