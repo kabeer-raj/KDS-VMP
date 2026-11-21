@@ -3,7 +3,7 @@
 # ------------------------------------------------------------------------------
 # 1. Builder Stage: Compile all workspace crates and release binaries
 # ------------------------------------------------------------------------------
-FROM rust:1.85-bookworm AS builder
+FROM rust:bookworm AS builder
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -97,3 +97,4 @@ COPY --from=builder /app/target/release/scan-worker /usr/local/bin/scan-worker
 USER appsec
 
 ENTRYPOINT ["/usr/local/bin/scan-worker"]
+
