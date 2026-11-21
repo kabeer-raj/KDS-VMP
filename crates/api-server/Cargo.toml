@@ -1,0 +1,32 @@
+[package]
+name = "api-server"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+shared-types = { path = "../shared-types" }
+core-domain = { path = "../core-domain" }
+infra = { path = "../infra" }
+
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+jsonwebtoken = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+regex = { workspace = true }
+futures-util = "0.3.31"
+http = "1.5.0"
+bytes = "1.12.1"
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+http-body-util = "0.1.5"
