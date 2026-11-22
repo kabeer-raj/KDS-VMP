@@ -22,6 +22,53 @@ async fn test_healthz() {
 }
 
 #[tokio::test]
+async fn test_cors_preflight_and_headers() {
+    let harness = TestHarness::new().await;
+
+    // Preflight OPTIONS request
+    let preflight_req = axum::http::Request::builder()
+        .method(axum::http::Method::OPTIONS)
+        .uri("/api/v1/auth/login")
+        .header("Origin", "http://localhost:3000")
+        .header("Access-Control-Request-Method", "POST")
+        .header("Access-Control-Request-Headers", "content-type,authorization")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+    let resp = tower::ServiceExt::oneshot(harness.app.clone(), preflight_req)
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let allow_origin = resp
+        .headers()
+        .get("access-control-allow-origin")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert_eq!(allow_origin, "*");
+
+    // Regular GET with Origin
+    let get_req = axum::http::Request::builder()
+        .method(axum::http::Method::GET)
+        .uri("/healthz")
+        .header("Origin", "http://some-frontend.org")
+        .body(axum::body::Body::empty())
+        .unwrap();
+
+    let resp = tower::ServiceExt::oneshot(harness.app.clone(), get_req)
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let allow_origin = resp
+        .headers()
+        .get("access-control-allow-origin")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert_eq!(allow_origin, "*");
+}
+
+#[tokio::test]
 async fn test_login_success_all_roles() {
     let harness = TestHarness::new().await;
 

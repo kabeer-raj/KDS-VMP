@@ -10,10 +10,13 @@ use axum::response::IntoResponse;
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use serde_json::json;
+use tower_http::cors::CorsLayer;
 
 use crate::state::AppState;
 
 pub fn create_router(state: AppState) -> Router {
+    let cors = CorsLayer::permissive();
+
     Router::new()
         // Health check
         .route("/healthz", get(healthz_handler))
@@ -163,6 +166,7 @@ pub fn create_router(state: AppState) -> Router {
             "/ws/v1/notifications",
             get(ws::ws_notifications_handler),
         )
+        .layer(cors)
         .with_state(state)
 }
 
