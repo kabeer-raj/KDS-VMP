@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ApplicationResponse,
   ScanType,
@@ -37,15 +37,32 @@ export const TriggerScanModal: React.FC<TriggerScanModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Sync appId whenever modal opens or applications/selectedAppId update
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMsg(null);
+      if (selectedAppId && applications.some((a) => a.id === selectedAppId)) {
+        setAppId(selectedAppId);
+      } else if (applications.length > 0) {
+        if (!appId || !applications.some((a) => a.id === appId)) {
+          setAppId(applications[0].id);
+        }
+      } else {
+        setAppId('');
+      }
+    }
+  }, [isOpen, selectedAppId, applications]);
+
   if (!isOpen) return null;
 
-  const currentApp = applications.find((a) => a.id === appId) || applications[0];
+  const effectiveAppId = appId || (applications.length > 0 ? applications[0].id : '');
+  const currentApp = applications.find((a) => a.id === effectiveAppId) || applications[0];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    if (!appId) {
+    if (!effectiveAppId) {
       setErrorMsg('Please select a target application.');
       return;
     }
@@ -62,7 +79,7 @@ export const TriggerScanModal: React.FC<TriggerScanModalProps> = ({
         customHeaders[headerKey.trim()] = headerVal.trim();
       }
 
-      await onSubmit(appId, {
+      await onSubmit(effectiveAppId, {
         scan_type: scanType,
         max_duration_minutes: maxDuration > 0 ? maxDuration : 30,
         custom_headers: Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
@@ -137,15 +154,19 @@ export const TriggerScanModal: React.FC<TriggerScanModalProps> = ({
             </label>
             <select
               id="target-app"
-              value={appId}
+              value={effectiveAppId}
               onChange={(e) => setAppId(e.target.value)}
               className="form-select"
             >
-              {applications.map((app) => (
-                <option key={app.id} value={app.id}>
-                  {app.name} ({app.base_url}) - [{app.environment.toUpperCase()}]
-                </option>
-              ))}
+              {applications.length === 0 ? (
+                <option value="" disabled>No registered applications found</option>
+              ) : (
+                applications.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.name} ({app.base_url}) - [{app.environment.toUpperCase()}]
+                  </option>
+                ))
+              )}
             </select>
             {currentApp && (
               <div className="target-summary-row mt-2">

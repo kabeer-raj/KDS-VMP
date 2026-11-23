@@ -40,6 +40,25 @@ export const DiffViewModal: React.FC<DiffViewModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isOpen) {
+      setErrorMsg(null);
+      if (initialBaseId && scans.some((s) => s.id === initialBaseId)) {
+        setBaseScanId(initialBaseId);
+      } else if (scans.length > 1 && (!baseScanId || !scans.some((s) => s.id === baseScanId))) {
+        setBaseScanId(scans[1].id);
+      } else if (scans.length > 0 && !baseScanId) {
+        setBaseScanId(scans[0].id);
+      }
+
+      if (initialTargetId && scans.some((s) => s.id === initialTargetId)) {
+        setTargetScanId(initialTargetId);
+      } else if (scans.length > 0 && (!targetScanId || !scans.some((s) => s.id === targetScanId))) {
+        setTargetScanId(scans[0].id);
+      }
+    }
+  }, [isOpen, initialBaseId, initialTargetId, scans]);
+
+  useEffect(() => {
     if (isOpen && baseScanId && targetScanId) {
       handleCompare();
     }
