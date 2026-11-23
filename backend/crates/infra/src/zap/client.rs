@@ -31,18 +31,44 @@ impl HttpZapClient {
 #[async_trait]
 impl ZapClient for HttpZapClient {
     async fn start_spider(&self, target_url: &str, context_name: Option<&str>) -> Result<String, InfraError> {
+        // Seed the target URL into the Sites tree
+        let access_url = format!("{}/JSON/core/action/accessUrl/", self.base_url);
+        let access_req = self.add_api_key(
+            self.client
+                .get(&access_url)
+                .query(&[("url", target_url), ("followRedirects", "true")]),
+        );
+        let _ = access_req.send().await;
+
         let url = format!("{}/JSON/spider/action/scan/", self.base_url);
-        let mut req = self.client.get(&url).query(&[("url", target_url)]);
+        let mut req = self.client.get(&url).query(&[
+            ("url", target_url),
+            ("maxChildren", "100"),
+            ("recurse", "true"),
+        ]);
         if let Some(ctx) = context_name {
             req = req.query(&[("contextName", ctx)]);
         }
         req = self.add_api_key(req);
 
         let res = req.send().await?.json::<serde_json::Value>().await?;
-        res.get("scan")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| InfraError::Zap("Failed to get spider scan ID".to_string()))
+
+        if let Some(val) = res.get("scan") {
+            if let Some(s) = val.as_str() {
+                return Ok(s.to_string());
+            } else if let Some(n) = val.as_i64() {
+                return Ok(n.to_string());
+            } else if let Some(n) = val.as_u64() {
+                return Ok(n.to_string());
+            }
+        }
+
+        if let Some(err_msg) = res.get("message").and_then(|m| m.as_str()) {
+            let code = res.get("code").and_then(|c| c.as_str()).unwrap_or("ZAP_ERROR");
+            return Err(InfraError::Zap(format!("ZAP spider error [{code}]: {err_msg}")));
+        }
+
+        Err(InfraError::Zap(format!("Failed to get spider scan ID. ZAP response: {res}")))
     }
 
     async fn get_spider_status(&self, scan_id: &str) -> Result<u8, InfraError> {
@@ -52,26 +78,60 @@ impl ZapClient for HttpZapClient {
         let res = req.send().await?.json::<serde_json::Value>().await?;
         let status_str = res
             .get("status")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| InfraError::Zap("Failed to get spider status".to_string()))?;
+            .and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    Some(s.to_string())
+                } else if let Some(n) = v.as_i64() {
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| InfraError::Zap(format!("Failed to get spider status. Response: {res}")))?;
         status_str
             .parse::<u8>()
             .map_err(|e| InfraError::Zap(format!("Invalid status value: {}", e)))
     }
 
     async fn start_active_scan(&self, target_url: &str, context_name: Option<&str>) -> Result<String, InfraError> {
+        // Ensure URL is accessed so it is in the Sites tree
+        let access_url = format!("{}/JSON/core/action/accessUrl/", self.base_url);
+        let access_req = self.add_api_key(
+            self.client
+                .get(&access_url)
+                .query(&[("url", target_url), ("followRedirects", "true")]),
+        );
+        let _ = access_req.send().await;
+
         let url = format!("{}/JSON/ascan/action/scan/", self.base_url);
-        let mut req = self.client.get(&url).query(&[("url", target_url)]);
+        let mut req = self.client.get(&url).query(&[
+            ("url", target_url),
+            ("recurse", "true"),
+            ("inScopeOnly", "false"),
+        ]);
         if let Some(ctx) = context_name {
             req = req.query(&[("contextName", ctx)]);
         }
         req = self.add_api_key(req);
 
         let res = req.send().await?.json::<serde_json::Value>().await?;
-        res.get("scan")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .ok_or_else(|| InfraError::Zap("Failed to get active scan ID".to_string()))
+
+        if let Some(val) = res.get("scan") {
+            if let Some(s) = val.as_str() {
+                return Ok(s.to_string());
+            } else if let Some(n) = val.as_i64() {
+                return Ok(n.to_string());
+            } else if let Some(n) = val.as_u64() {
+                return Ok(n.to_string());
+            }
+        }
+
+        if let Some(err_msg) = res.get("message").and_then(|m| m.as_str()) {
+            let code = res.get("code").and_then(|c| c.as_str()).unwrap_or("ZAP_ERROR");
+            return Err(InfraError::Zap(format!("ZAP active scan error [{code}]: {err_msg}")));
+        }
+
+        Err(InfraError::Zap(format!("Failed to get active scan ID. ZAP response: {res}")))
     }
 
     async fn get_active_scan_status(&self, scan_id: &str) -> Result<u8, InfraError> {
@@ -81,8 +141,16 @@ impl ZapClient for HttpZapClient {
         let res = req.send().await?.json::<serde_json::Value>().await?;
         let status_str = res
             .get("status")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| InfraError::Zap("Failed to get active scan status".to_string()))?;
+            .and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    Some(s.to_string())
+                } else if let Some(n) = v.as_i64() {
+                    Some(n.to_string())
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| InfraError::Zap(format!("Failed to get active scan status. Response: {res}")))?;
         status_str
             .parse::<u8>()
             .map_err(|e| InfraError::Zap(format!("Invalid status value: {}", e)))

@@ -16,9 +16,12 @@ services:
       target: api-server
     container_name: kds-api-server
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${API_PORT:-8000}:8000"
     environment:
+      - IN_DOCKER=true
       - PORT=8000
       - DATABASE_URL=postgres://${POSTGRES_USER:-appsec}:${POSTGRES_PASSWORD:-appsec_password}@postgres:5432/${POSTGRES_DB:-appsec_db}
       - REDIS_URL=redis://redis:6379
@@ -41,7 +44,10 @@ services:
       target: scan-worker
     container_name: kds-scan-worker
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
+      - IN_DOCKER=true
       - DATABASE_URL=postgres://${POSTGRES_USER:-appsec}:${POSTGRES_PASSWORD:-appsec_password}@postgres:5432/${POSTGRES_DB:-appsec_db}
       - REDIS_URL=redis://redis:6379
       - ZAP_URL=http://zap:8080
@@ -97,6 +103,8 @@ services:
     image: zaproxy/zap-stable:latest
     container_name: kds-zap
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.key=${ZAP_API_KEY:-zap_secret_api_key_2026} -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
     ports:
       - "${ZAP_PORT:-8080}:8080"
