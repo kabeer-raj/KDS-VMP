@@ -149,6 +149,46 @@ class ApiClient {
   }
 
   /**
+   * Automatically ensure an authenticated session exists with the backend.
+   * If no token or API key is set, automatically logs in using default admin credentials.
+   */
+  public async ensureAuthenticated(): Promise<boolean> {
+    if (this.isMockEnabled) return true;
+    if (this.getAccessToken() || this.getApiKey()) return true;
+
+    try {
+      const baseOrigin = this.baseUrl.replace(/\/api\/v1\/?$/, '');
+      const loginUrl = `${baseOrigin}/api/v1/auth/login`;
+      const res = await fetch(loginUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          email: 'admin@kds.local',
+          password: 'AdminSecret123!',
+        }),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as TokenResponse;
+        if (data.access_token) {
+          this.setAccessToken(data.access_token);
+        }
+        if (data.refresh_token) {
+          this.setRefreshToken(data.refresh_token);
+        }
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.warn('Auto-login with default credentials failed:', err);
+      return false;
+    }
+  }
+
+  /**
    * Core request dispatcher with automatic JWT/API-Key headers,
    * 401 token refresh flow, and network-error mock fallback.
    */
@@ -174,8 +214,14 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    const token = this.getAccessToken();
-    const apiKey = this.getApiKey();
+    let token = this.getAccessToken();
+    let apiKey = this.getApiKey();
+
+    if (!token && !apiKey && !endpoint.includes('/auth/login') && !endpoint.includes('/healthz')) {
+      await this.ensureAuthenticated();
+      token = this.getAccessToken();
+      apiKey = this.getApiKey();
+    }
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -186,13 +232,24 @@ class ApiClient {
     try {
       const response = await fetch(url, { ...options, headers });
 
-      // Handle 401 unauthorized & refresh token
-      if (response.status === 401 && retryOnAuthFailure && this.getRefreshToken()) {
-        const refreshedToken = await this.performTokenRefresh();
-        if (refreshedToken) {
-          headers['Authorization'] = `Bearer ${refreshedToken}`;
-          const retryRes = await fetch(url, { ...options, headers });
-          return this.processResponse<T>(retryRes);
+      // Handle 401 unauthorized & refresh token or re-auth
+      if (response.status === 401 && retryOnAuthFailure) {
+        if (this.getRefreshToken()) {
+          const refreshedToken = await this.performTokenRefresh();
+          if (refreshedToken) {
+            headers['Authorization'] = `Bearer ${refreshedToken}`;
+            const retryRes = await fetch(url, { ...options, headers });
+            return this.processResponse<T>(retryRes);
+          }
+        }
+        if (!endpoint.includes('/auth/login')) {
+          this.clearTokens();
+          const autoLoggedIn = await this.ensureAuthenticated();
+          if (autoLoggedIn && this.getAccessToken()) {
+            headers['Authorization'] = `Bearer ${this.getAccessToken()}`;
+            const retryRes = await fetch(url, { ...options, headers });
+            return this.processResponse<T>(retryRes);
+          }
         }
       }
 

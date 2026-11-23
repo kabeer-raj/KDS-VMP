@@ -9,6 +9,7 @@ import {
   Database,
   User,
 } from 'lucide-react';
+import { UserProfile } from '../../types';
 
 export type NavTab = 'dashboard' | 'apps' | 'scans' | 'vulns' | 'reports';
 
@@ -19,6 +20,7 @@ export interface SidebarProps {
   onToggleMockMode: () => void;
   openVulnsCount?: number;
   activeScansCount?: number;
+  userProfile?: UserProfile | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -28,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleMockMode,
   openVulnsCount = 0,
   activeScansCount = 0,
+  userProfile = null,
 }) => {
   const navItems: Array<{
     id: NavTab;
@@ -135,8 +138,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <User size={15} />
           </div>
           <div className="user-details">
-            <div className="user-name">secops@kds.corp</div>
-            <div className="user-role">Security Engineer</div>
+            <div className="user-name">{userProfile?.email || 'admin@kds.local'}</div>
+            <div className="user-role">
+              {userProfile?.role ? userProfile.role.replace('_', ' ').toUpperCase() : 'Administrator'}
+            </div>
           </div>
           <div className="user-status-dot" title="Authenticated session active" />
         </div>
