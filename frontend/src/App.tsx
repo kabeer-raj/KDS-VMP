@@ -13,6 +13,7 @@ import {
   ScanProgressEvent,
   ScanCompletedEvent,
   ScanFailedEvent,
+  UserProfile,
 } from './types';
 import { api } from './services/api';
 import {
@@ -51,6 +52,7 @@ export function App() {
   const [scans, setScans] = useState<ScanResponse[]>([]);
   const [vulnerabilities, setVulnerabilities] = useState<VulnerabilitySummary[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // Active Scan & WebSocket State
   const [activeScan, setActiveScan] = useState<ScanResponse | null>(null);
@@ -132,6 +134,9 @@ export function App() {
         return;
       }
 
+      // Ensure authenticated before loading protected data
+      await api.ensureAuthenticated();
+
       const [appsRes, scansRes, summaryRes, vulnsRes] = await Promise.all([
         api.listApps(),
         api.listGlobalScans(),
@@ -145,6 +150,8 @@ export function App() {
       setVulnerabilities(vulnsRes.items);
       setIsBackendUnreachable(false);
 
+      api.getMe().then(setUserProfile).catch(() => {});
+
       // Check if there is an active running scan
       const running = scansRes.find(
         (s: ScanResponse) =>
@@ -157,8 +164,11 @@ export function App() {
         setActiveScan(running);
       }
     } catch (err: any) {
-      console.warn('Backend not connected — unable to reach 127.0.0.1:8000:', err);
-      setIsBackendUnreachable(true);
+      console.warn('Error loading backend data from 127.0.0.1:8000:', err);
+      const isUp = await api.checkHealth();
+      if (!isUp && !api.getMockMode()) {
+        setIsBackendUnreachable(true);
+      }
       setApplications([]);
       setScans([]);
       setDashboardSummary({
@@ -413,6 +423,7 @@ export function App() {
         onToggleMockMode={handleToggleMockMode}
         openVulnsCount={vulnerabilities.filter((v) => v.status === 'open' || v.status === 'in_progress').length}
         activeScansCount={scans.filter((s) => s.status === 'active_scanning' || s.status === 'spidering').length}
+        userProfile={userProfile}
       />
 
       {/* 2. Main Content Canvas */}

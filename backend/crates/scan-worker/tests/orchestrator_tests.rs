@@ -207,3 +207,34 @@ async fn test_orchestrator_baseline_passive_scan_skips_active_scanner() {
     assert_eq!(result.status, ScanStatus::Completed);
     assert_eq!(result.progress_percent, 100);
 }
+
+#[test]
+fn test_resolve_target_url_for_zap() {
+    // When IN_DOCKER is not set or false
+    std::env::remove_var("IN_DOCKER");
+    std::env::remove_var("ZAP_URL");
+    assert_eq!(
+        ZapOrchestrator::resolve_target_url_for_zap("http://localhost:8000"),
+        "http://localhost:8000"
+    );
+
+    // When IN_DOCKER is set to true
+    std::env::set_var("IN_DOCKER", "true");
+    assert_eq!(
+        ZapOrchestrator::resolve_target_url_for_zap("http://localhost:8000"),
+        "http://api-server:8000"
+    );
+    assert_eq!(
+        ZapOrchestrator::resolve_target_url_for_zap("http://127.0.0.1:8000/api/v1"),
+        "http://api-server:8000/api/v1"
+    );
+    assert_eq!(
+        ZapOrchestrator::resolve_target_url_for_zap("http://localhost:3000/dashboard"),
+        "http://host.docker.internal:3000/dashboard"
+    );
+    assert_eq!(
+        ZapOrchestrator::resolve_target_url_for_zap("https://external-target.com"),
+        "https://external-target.com"
+    );
+    std::env::remove_var("IN_DOCKER");
+}
